@@ -29,7 +29,7 @@ library(scales)
 VCF1 <- read_csv("input_data/VCF1_r.csv")
 VCF2 <- read_csv("input_data/VCF2_r.csv")
 
-# loading clinical data and selecting necessary columns, also provided by Li et al. 
+# loading clinical data and selecting necessary columns
 clinical <- fread("input_data/clinical.tsv")
 clinical <- select(clinical, 
                    case_id, 
