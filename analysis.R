@@ -4,19 +4,15 @@
 
 # Code collaboratively built by Mary Summers, Sem Asmelash, J. Nick Fisk, Jeffrey D. Mandell, and Vincent L. Cannataro 
 
-
-
-
-
 # load cancer effect size and necessary packages ----
-
 library(cancereffectsizeR) # v2.7.0 https://townsend-lab-yale.github.io/cancereffectsizeR/
 library(ces.refset.hg19)
 library(data.table)
-library(tidyverse)
 library(ggrepel)
 library(patchwork)
 library(scales)
+library(dplyr)
+library(stringr)
 
 
 # loading all VCF and TCGA data data ----
@@ -26,8 +22,8 @@ library(scales)
 
 # Li L, Yue P, Song Q, et al. Genome-wide mutation analysis in precancerous lesions of endometrial carcinoma. J Pathol 2021; 253: 119-128
 
-VCF1 <- read_csv("input_data/VCF1_r.csv")
-VCF2 <- read_csv("input_data/VCF2_r.csv")
+VCF1 <- fread("input_data/VCF1_r.csv")
+VCF2 <- fread("input_data/VCF2_r.csv")
 
 # loading clinical data and selecting necessary columns
 clinical <- fread("input_data/clinical.tsv")
@@ -36,15 +32,15 @@ clinical <- select(clinical,
                    figo_stage)
 
 # loading TCGA UCEC data
-if(!file.exists("input_data/TCGA_ucec_data.maf")){
+tcga_ucec_maf = "input_data/TCGA_ucec_data.maf"
+if(!file.exists(tcga_ucec_maf)){
   get_TCGA_project_MAF(
     project = "TCGA-UCEC",
-    filename = "input_data/TCGA_ucec_data.maf",
-    test_run = FALSE,
+    filename = tcga_ucec_maf,
     exclude_TCGA_nonprimary = TRUE)
 }
 
-TCGA_ucec_data <- read_tsv("input_data/TCGA_ucec_data.maf", comment = "#")
+
 
 # processing VCF data ----
 
@@ -74,7 +70,7 @@ VCF_all <- dplyr::rename(VCF_all, "Start_Position" = "Start_position",
 
 # assinging stage column to VCF_all, assigned as "AH" or "EC"
 VCF_all <- VCF_all %>% 
-  mutate(Stage = stringr::str_sub(Tumor_Sample_Barcode,1,2))
+  mutate(Stage = str_sub(Tumor_Sample_Barcode,1,2))
 
 # pre load maf VCF and TCGA ----
 
@@ -82,31 +78,33 @@ VCF_all <- VCF_all %>%
 VCF_all_maf_data <- preload_maf(maf = VCF_all, 
                                 refset = "ces.refset.hg19", 
                                 keep_extra_columns = c("Stage", "Gene_Name"))
-# removing samples where column Problem is equal to NA
+# Remove problematic records:
+# unsupported_chr        1359
+# duplicate_record        7995
 VCF_all_maf_data <- VCF_all_maf_data[is.na(problem)]
 
-# keeping only samples that do not occur at germline variant sites
+# Keeping only samples that do not occur at germline variant sites
 VCF_all_maf_data <- VCF_all_maf_data[germline_variant_site == F]
 
-# keeping only samples that do not occur in repetitive regions 
+# Drop variants in repetitive regions except those at COSMIC sites
 VCF_all_maf_data <- VCF_all_maf_data[(repetitive_region == F | cosmic_site_tier %in% 1:3)]
 
 # removing EC samples from VCF data because the figo stage is not specified
 VCF_all_maf_data <- subset(VCF_all_maf_data, Stage == "AH")
 
-# pre laod TCGA data
-maf_ucec <- preload_maf(maf = TCGA_ucec_data, 
+# prep TCGA data
+maf_ucec <- preload_maf(maf = tcga_ucec_maf, 
                         refset = "ces.refset.hg19", 
                         chain_file = "input_data/hg38ToHg19.over.chain", 
-                        keep_extra_columns = c("case_id"))
+                        keep_extra_columns = "case_id")
 
-# removing samples where column Problem is equal to NA
+# Drop records with problems, all related to liftOver failure or change of reference base.
 maf_ucec <- maf_ucec[is.na(problem)]
 
-# keeping only samples that do not occur at germline variant sites
+# Keeping only samples that do not occur at germline variant sites.
 maf_ucec <- maf_ucec[germline_variant_site == F]
 
-# keeping only samples that do not occur in repetitive regions 
+# Drop samples that occur in repetitive regions except those at COSMIC sites
 maf_ucec <- maf_ucec[(repetitive_region == F | cosmic_site_tier %in% 1:3)]
 
 
@@ -130,24 +128,26 @@ maf_ucec <- maf_ucec |>
 # loading sample and clinical data from download, instructions to be written in read.me file
 # loading all maf data from CPTAC 3 project
 
-
-if(!file.exists("input_data/cptac.maf")){
+cptac_maf_file = "input_data/cptac.maf"
+if(!file.exists(cptac_maf_file)){
   get_TCGA_project_MAF(
     project = "CPTAC-3",
-    filename = "input_data/cptac.maf",
-    test_run = FALSE,
+    filename = cptac_maf_file,
     exclude_TCGA_nonprimary = TRUE)
 }
 
 
-# loading maf data
-cptac.maf <- read_tsv("cptac.maf", comment = "#")
-manifest <- read_tsv("input_data/gdc_manifest.2023-02-28.txt")
-cptac_clinical <- read_tsv("input_data/clinical_cart/clinical.tsv")
+# Loading maf data
+cptac_maf <- fread(cptac_maf_file)
+manifest <- fread("input_data/gdc_manifest.2023-02-28.txt")
+
+# Confusing, but note input_data/clinical/clinical.tsv pertains TCGA UCEC,
+# while input_data/clinical_cart/clinical.tsv pertains to CPTAC.
+cptac_clinical <- fread("input_data/clinical_cart/clinical.tsv")
 
 
 # selecting data from CPTAC maf file with tumor sample barcodes matching the 102 samples from manifest
-maf_endo_cptac <- cptac.maf |> filter(source_file_id %in% manifest$id)
+maf_endo_cptac <- cptac_maf |> filter(source_file_id %in% manifest$id)
 
 
 # joining clinical and sample data sets by case id
@@ -160,14 +160,9 @@ maf_cptac <- preload_maf(maf = maf_endo_cptac,
                          chain_file = "input_data/hg38ToHg19.over.chain", 
                          keep_extra_columns = c("case_id", "ajcc_pathologic_stage"))
 
-
-# removing samples where column Problem is equal to NA
+# Filter as above
 maf_cptac <- maf_cptac[is.na(problem)]
-
-# keeping only samples that do not occur at germline variant sites
 maf_cptac <- maf_cptac[germline_variant_site == F]
-
-# keeping only samples that do not occur in repetitive regions 
 maf_cptac <- maf_cptac[(repetitive_region == F | cosmic_site_tier %in% 1:3)]
 
 # adding stage column and specifying Stage 1 and Rest of Stages
@@ -187,22 +182,19 @@ maf_cptac <- maf_cptac |>
 cesa <- CESAnalysis(refset = "ces.refset.hg19")
 
 # load in data from CPTAC, TCGA and Li projects
-cesa <- load_maf(cesa = cesa, maf = maf_cptac,sample_data_cols = "Stage")
-cesa <- load_maf(cesa = cesa, maf = VCF_all_maf_data,sample_data_cols = "Stage")
-cesa <- load_maf(cesa = cesa, maf = maf_ucec,sample_data_cols = "Stage")
+cesa <- load_maf(cesa = cesa, maf = maf_cptac, sample_data_cols = "Stage")
+cesa <- load_maf(cesa = cesa, maf = VCF_all_maf_data, sample_data_cols = "Stage")
+cesa <- load_maf(cesa = cesa, maf = maf_ucec, sample_data_cols = "Stage")
 
 
 # estimating mutation rates
 cesa_samples_by_groups <- gene_mutation_rates(cesa = cesa, covariates = "UCEC", samples = cesa$samples[Stage == "AH"],save_all_dndscv_output = T)
 cesa_samples_by_groups <- gene_mutation_rates(cesa = cesa_samples_by_groups, covariates = "UCEC", samples = cesa$samples[Stage == "Stage1"], save_all_dndscv_output = T)
-# cesa_samples_by_groups <- gene_mutation_rates(cesa = cesa_samples_by_groups, covariates = "UCEC", samples = cesa$samples[Stage == "RestOfStages"], save_all_dndscv_output = T)
-
 
 # selecting genes of interest
 selected_genes <- c("KRAS", "PTEN", "ARID1A", "CTCF", "CTNNB1", "PIK3CA", "CHD4", "FGFR2", "PIK3R1")
 
 
-library(ces.refset.hg19)
 RefCDS = ces.refset.hg19$RefCDS
 dndscv_gene_names <- cesa_samples_by_groups$gene_rates$gene
 nsyn_sites = sapply(RefCDS[dndscv_gene_names], function(x) colSums(x[["L"]])[1])
@@ -316,7 +308,7 @@ selection_data <- rbindlist(cesa_samples_by_groups$selection)
 # reformatting data set
 selection_data <- selection_data |> 
   select(variant_name, starts_with("si"), starts_with("ci")) |>
-  pivot_longer(cols = -variant_name, names_to = "data_type") |>
+  tidyr::pivot_longer(cols = -variant_name, names_to = "data_type") |>
   mutate(stage = stringr::word(string = data_type, sep = "_",start = -1)) |>
   mutate(variant_name = stringr::str_remove(variant_name, "\\.1")) |>
   mutate(si_or_ci = stringr::word(string = data_type, sep = "_",start = 1, end=3)) |>
@@ -326,7 +318,7 @@ selection_data <- selection_data |>
 # pivoting data set to create columns for gene, stage, si, and CIs
 selection_data <- selection_data|> 
   select(-data_type) |>
-  pivot_wider(values_from = value, names_from = si_or_ci)
+  tidyr::pivot_wider(values_from = value, names_from = si_or_ci)
 
 # defining stages to be plotted
 selection_data$stage <- factor(selection_data$stage, levels = c("AH","Stage1"))
@@ -343,8 +335,6 @@ selection_data |>
   scale_y_continuous(labels = scientific) +
   theme(text = element_text(size = 20)) +
   expand_limits (y = 0)
-
-# ggsave(filename = "figures/figure2.png", width = 7, height = 10)
 
 
 # selection_data
@@ -571,24 +561,20 @@ prevalence_df <- prevalence_df |>
   mutate(prop_tumors_without = tumors_without/total_samples)
 
 prevalence_df_w <- prevalence_df %>% 
-  pivot_wider(names_from = stages, values_from = c(prop_tumors_with, prop_tumors_without)) %>%
-  fill(`prop_tumors_with_Atypical hyperplasia`) %>% 
-  fill(`prop_tumors_with_Stage-1 EC`,.direction = "up") %>% 
+  tidyr::pivot_wider(names_from = stages, values_from = c(prop_tumors_with, prop_tumors_without)) %>%
+  tidyr::fill(`prop_tumors_with_Atypical hyperplasia`) %>% 
+  tidyr::fill(`prop_tumors_with_Stage-1 EC`,.direction = "up") %>% 
   select(compound, `prop_tumors_with_Atypical hyperplasia`, `prop_tumors_with_Stage-1 EC`)
 
 prevalence_df_w <- prevalence_df_w[rep(c(T,F),nrow(prevalence_df_w)/2),] # deduplicate
 
 prevalence_df_w <- prevalence_df_w %>% 
-  mutate(gene_name = str_remove(compound, pattern = "\\.1") )
-
-# prevalence_df %>% 
-#   pivot_longer(cols = c(prop_tumors_with,prop_tumors_without))
-#   
-library(ggrepel)
+  mutate(gene_name = str_remove(compound, pattern = "\\.1"))
 
 font_size <- 12
 geom_font_size <- (5/14) * font_size
 
+set.seed(105)
 ggplot(prevalence_df, aes(x=stages, y=prop_tumors_with)) + 
   geom_point() + 
   geom_segment(data = prevalence_df_w, aes(x=1,xend = 2,
@@ -612,8 +598,6 @@ ggsave(filename = "figures/figure_1_prevalence.png",plot = prev_plot,height = 5,
 cesa_epistasis <- gene_mutation_rates(cesa = cesa, covariates = "UCEC", save_all_dndscv_output = T)
 cesa_epistasis <- trinuc_mutation_rates(cesa = cesa_epistasis, signature_set = "COSMIC_v3.2", signature_exclusions = signature_exclusions)
 
-
-RefCDS = ces.refset.hg19$RefCDS
 dndscv_gene_names <- cesa_epistasis$gene_rates$gene
 nsyn_sites = sapply(RefCDS[dndscv_gene_names], function(x) colSums(x[["L"]])[1])
 
@@ -1037,8 +1021,6 @@ ci_plot_pik3_annot <- ci_plot_pik3_annot + plot_layout(tag_level = 'new')
 
 ci_plot_kras_fgfr2_annot <- ci_plot_kras_fgfr2_annot + plot_layout(tag_level = 'new')
 
-
-
 both_epi_plot <- 
   ci_plot_pik3 + 
   ci_plot_pik3_annot + 
@@ -1048,7 +1030,6 @@ both_epi_plot <-
   plot_layout(nrow = 2) & 
   theme(plot.tag.position = c(0, 1),
         plot.tag = element_text(hjust = 0, vjust = 1)) 
-
 
 ggsave(filename = "figures/figure_3_epistasis.png", width =12, height = 7)
 
