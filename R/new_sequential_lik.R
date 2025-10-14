@@ -13,7 +13,7 @@ sequential_lik_dev <- function(rates_tumors_with, rates_tumors_without, sample_i
   stages_tumors_with = sample_index[names(rates_tumors_with), group_index, on = "Unique_Patient_Identifier"]
   stages_tumors_without = sample_index[names(rates_tumors_without), group_index, on = "Unique_Patient_Identifier"]
   num_pars = sample_index[, uniqueN(group_index)]
-  
+
   fn = function(gamma) {
     gamma = unname(gamma)
     sums = cumsum(gamma)
@@ -47,7 +47,7 @@ sequential_lik_dev <- function(rates_tumors_with, rates_tumors_without, sample_i
   }
   
   # Set default values for all parameters, which ces_variant will use to set starting values of optimization
-  formals(fn)[["gamma"]] = rep.int(1000, num_pars)
+  formals(fn)[["gamma"]] = rep.int(1, num_pars)
   
   # Optimization tool, bbmle::mle, requires that vector of parameters to optimize have named elements
   group_names = unique(sample_index[, .(group_index, group_name)], by = 'group_index')[order(group_index), group_name]
