@@ -10,8 +10,8 @@
 
 # load cancer effect size and necessary packages ----
 
-library(cancereffectsizeR) # v2.7.0 https://townsend-lab-yale.github.io/cancereffectsizeR/
-library(ces.refset.hg19)
+library(cancereffectsizeR) # v2.10.2 https://townsend-lab-yale.github.io/cancereffectsizeR/
+library(ces.refset.hg19) #v1.1.3
 library(data.table)
 library(tidyverse)
 library(ggrepel)
@@ -82,7 +82,7 @@ VCF_all <- VCF_all %>%
 VCF_all_maf_data <- preload_maf(maf = VCF_all, 
                                 refset = "ces.refset.hg19", 
                                 keep_extra_columns = c("Stage", "Gene_Name"))
-# removing samples where column Problem is equal to NA
+# removing samples where column Problem is not equal to NA
 VCF_all_maf_data <- VCF_all_maf_data[is.na(problem)]
 
 # keeping only samples that do not occur at germline variant sites
@@ -100,7 +100,7 @@ maf_ucec <- preload_maf(maf = TCGA_ucec_data,
                         chain_file = "input_data/hg38ToHg19.over.chain", 
                         keep_extra_columns = c("case_id"))
 
-# removing samples where column Problem is equal to NA
+# removing samples where column Problem is not equal to NA
 maf_ucec <- maf_ucec[is.na(problem)]
 
 # keeping only samples that do not occur at germline variant sites
@@ -110,7 +110,7 @@ maf_ucec <- maf_ucec[germline_variant_site == F]
 maf_ucec <- maf_ucec[(repetitive_region == F | cosmic_site_tier %in% 1:3)]
 
 
-# combinging ucec clinical and maf data
+# combining ucec clinical and maf data
 maf_ucec <- maf_ucec %>% 
   left_join(clinical, by = "case_id")
 
@@ -141,7 +141,7 @@ if(!file.exists("input_data/cptac.maf")){
 
 
 # loading maf data
-cptac.maf <- read_tsv("cptac.maf", comment = "#")
+cptac.maf <- read_tsv("input_data/cptac.maf", comment = "#")
 manifest <- read_tsv("input_data/gdc_manifest.2023-02-28.txt")
 cptac_clinical <- read_tsv("input_data/clinical_cart/clinical.tsv")
 
@@ -161,7 +161,7 @@ maf_cptac <- preload_maf(maf = maf_endo_cptac,
                          keep_extra_columns = c("case_id", "ajcc_pathologic_stage"))
 
 
-# removing samples where column Problem is equal to NA
+# removing samples where column Problem is not equal to NA
 maf_cptac <- maf_cptac[is.na(problem)]
 
 # keeping only samples that do not occur at germline variant sites
@@ -187,9 +187,9 @@ maf_cptac <- maf_cptac |>
 cesa <- CESAnalysis(refset = "ces.refset.hg19")
 
 # load in data from CPTAC, TCGA and Li projects
-cesa <- load_maf(cesa = cesa, maf = maf_cptac,sample_data_cols = "Stage")
-cesa <- load_maf(cesa = cesa, maf = VCF_all_maf_data,sample_data_cols = "Stage")
-cesa <- load_maf(cesa = cesa, maf = maf_ucec,sample_data_cols = "Stage")
+cesa <- load_maf(cesa = cesa, maf = maf_cptac, sample_data_cols = "Stage")
+cesa <- load_maf(cesa = cesa, maf = VCF_all_maf_data, sample_data_cols = "Stage")
+cesa <- load_maf(cesa = cesa, maf = maf_ucec, sample_data_cols = "Stage")
 
 
 # estimating mutation rates
@@ -226,6 +226,9 @@ mut_rate_df %>%
   mutate(cancer_greater = cancer1_mu > hyp_mu) -> 
   mut_rate_df
 
+# check for monotonic increase of expected baseline mutation flux
+table(mut_rate_df$cancer_greater)
+
 # defining rate 1 and rate 2 as mutation rates for hyperplasia and stage 1
 rate_1 <- mut_rate_df|>
   select(gene, hyp_mu)
@@ -233,14 +236,14 @@ rate_2 <- mut_rate_df|>
   select(gene, cancer1_mu)
 
 # change in mutation rate across stages
-mut_rate_df <- mut_rate_df %>% 
+mut_rates_for_p <- mut_rate_df %>% 
   select(gene, hyp_mu, cancer1_mu) %>% 
   mutate(p_1 = hyp_mu / cancer1_mu) %>% 
   mutate(p_2 = 1 - p_1)
 
 # saving "last" gene mutation rates into separate data frame, "last" rates meaning from last stage cancer1_mu
 set_cancer_rates <- mut_rate_df %>%
-  select(gene, cancer1_mu) %>%
+  select(gene, rate = cancer1_mu) %>%
   data.table::setDT()
 
 # clear the gene rates in the cesa object 
@@ -290,19 +293,61 @@ compound <- define_compound_variants(cesa = cesa_samples_by_groups,
 
 source("R/new_sequential_lik.R")
 
+index_by_state = list()
+name_by_state = list()
+ordering_col = 'Stage'
+ordering = c('AH', 'Stage1')
+if(is.null(names(ordering))) {
+  if (length(unlist(ordering)) == length(ordering)) {
+    names(ordering) = unlist(ordering)
+  } else {
+    names(ordering) = 1:length(ordering)
+  }
+}
+for (i in 1:length(ordering)) {
+  for (j in 1:length(ordering[[i]])) {
+    index_by_state[[ordering[[i]][j]]] = i
+    name_by_state[[ordering[[i]][j]]] = names(ordering)[i]
+  }
+}
+samples = cancereffectsizeR:::select_samples(cesa_samples_by_groups, samples=cesa_samples_by_groups$samples[Stage != "RestOfStages"])
+sample_index_table = samples[, .(Unique_Patient_Identifier = Unique_Patient_Identifier,
+                                 group_index = unlist(index_by_state[samples[[ordering_col]]]), 
+                                 group_name = unlist(name_by_state[samples[[ordering_col]]]))]
+
 for(comp_ind in 1:length(compound)){
   
   this_comp <- compound[comp_ind, ]
   
-  this_gene <- unlist(unique(this_comp$snv_info$genes))
-  these_props <- mut_rate_df[mut_rate_df$gene == this_gene,c("p_1","p_2")]
+  this_gene <- unlist(unique(this_comp$snv_info$genes))[1]
+  these_props <- mut_rates_for_p[mut_rates_for_p$gene %in% this_gene, c("p_1","p_2")]
   these_props <- c(these_props$p_1, these_props$p_2)
+  if(length(this_gene) != 1){
+    this_gene <- unlist(str_split(this_gene[1], "\\."))
+    this_gene <- this_gene[1]
+  }
   
-  cesa_samples_by_groups <- ces_variant(cesa = cesa_samples_by_groups, variants = this_comp, model = sequential_lik_dev, 
-                                        ordering_col = 'Stage', ordering = c('AH', 'Stage1'), 
-                                        lik_args = list(sequential_mut_prop = these_props), run_name = this_gene)
+  cat("Running gene:", this_gene, "\n")
+  # print(this_comp)
+  # print(these_props)
   
-}
+  if (length(these_props) != 2 || any(is.na(these_props))) {
+    stop(paste("Missing or invalid mutation rates for", this_gene))
+  }
+  
+  cesa_samples_by_groups <- modified_ces_variant(cesa = cesa_samples_by_groups,
+                                                 samples=cesa_samples_by_groups$samples[Stage != "RestOfStages"], 
+                                                 variants = this_comp, 
+                                                 model = sequential_lik_dev, 
+                                                 lik_args = list(sample_index = sample_index_table, 
+                                                                 sequential_mut_prop = these_props), 
+                                                 optimizer_args = list(method = 'L-BFGS-B', 
+                                                                       lower = 1e-3, 
+                                                                       upper = 1e9),
+                                                 return_fit = TRUE,
+                                                 run_name = this_gene,
+                                                 conf = 0.95)
+  }
 
 
 # creating selection plots with stage specific model ----
@@ -313,26 +358,66 @@ scientific <- function(x){ifelse(x==0, "0", parse(text=gsub("[+]", "", gsub("e",
 
 selection_data <- rbindlist(cesa_samples_by_groups$selection)
 
+
+# computing Likelihood Root 95% CIs
+ci_results <- list()
+
+for (gene in selected_genes) {
+  fit_list <- attr(cesa_samples_by_groups@selection_results[[gene]], "fit")
+  fit <- fit_list[[1]]
+  
+  lik_fn <- get(paste0("lik_fn_", gene))
+  
+  ci <- cancereffectsizeR:::univariate_si_conf_ints(
+    fit = fit,
+    lik_fn = lik_fn,
+    min_si = 0.001,
+    max_si = 1e9,
+    conf = 0.95
+  )
+  
+  coef_vals <- coef(fit)
+  
+  ci_results[[gene]] <- data.frame(
+    gene = gene,
+    si_AH = coef_vals["si_AH"],
+    si_Stage1 = coef_vals["si_Stage1"],
+    ci_AH_low = ifelse(is.null(ci$ci_low_95_si_AH), NA, ci$ci_low_95_si_AH),
+    ci_AH_high = ifelse(is.null(ci$ci_high_95_si_AH), NA, ci$ci_high_95_si_AH),
+    ci_Stage1_low = ifelse(is.null(ci$ci_low_95_si_Stage1), NA, ci$ci_low_95_si_Stage1),
+    ci_Stage1_high = ifelse(is.null(ci$ci_high_95_si_Stage1), NA, ci$ci_high_95_si_Stage1)
+  )
+}
+
+ci_df <- do.call(rbind, ci_results)
+
+ci_df <- ci_df %>%
+  mutate(ci_AH_low = ifelse(ci_AH_low < 0.001 | is.na(ci_AH_low), 0.001, ci_AH_low),
+         ci_Stage1_low = ifelse(ci_Stage1_low < 0.001 | is.na(ci_Stage1_low), 0.001, ci_Stage1_low))
+
+ci_df$gene <- factor(ci_df$gene, levels = unique(ci_df$gene))
+
 # reformatting data set
-selection_data <- selection_data |> 
-  select(variant_name, starts_with("si"), starts_with("ci")) |>
+plotting_df <- ci_df |> 
+  select(variant_name = gene, starts_with("si"), starts_with("ci")) |>
   pivot_longer(cols = -variant_name, names_to = "data_type") |>
-  mutate(stage = stringr::word(string = data_type, sep = "_",start = -1)) |>
-  mutate(variant_name = stringr::str_remove(variant_name, "\\.1")) |>
-  mutate(si_or_ci = stringr::word(string = data_type, sep = "_",start = 1, end=3)) |>
-  mutate( si_or_ci = case_when(is.na(si_or_ci) ~ "si", TRUE ~ si_or_ci)) |>
-  mutate (value = case_when (is.na(value)~0, TRUE~value))
+  mutate(stage = ifelse(str_detect(data_type, "AH"), "AH", "Stage1")) |>
+  mutate(si_or_ci = case_when(str_detect(data_type, "si") ~"si", 
+                              str_detect(data_type, "low") ~"ci_low_95",
+                              str_detect(data_type, "high") ~"ci_high_95")) |>
+  
+  mutate (value = case_when(is.na(value)~0, TRUE~value))
 
 # pivoting data set to create columns for gene, stage, si, and CIs
-selection_data <- selection_data|> 
+plotting_df <- plotting_df|> 
   select(-data_type) |>
   pivot_wider(values_from = value, names_from = si_or_ci)
 
 # defining stages to be plotted
-selection_data$stage <- factor(selection_data$stage, levels = c("AH","Stage1"))
+plotting_df$stage <- factor(plotting_df$stage, levels = c("AH","Stage1"))
 
 # plotting results
-selection_data |>
+plotting_df |>
   ggplot(aes(x = stage, y = si, color = stage)) + 
   geom_point(size = 2.5) + 
   geom_errorbar(aes(ymin = ci_low_95, ymax = ci_high_95), width = .5) + 
@@ -354,7 +439,7 @@ selection_data |>
 limits1 <- c(0,1.5e3)
 text_size <- 13
 
-ARID1A_plot <- selection_data %>% 
+ARID1A_plot <- plotting_df %>% 
   filter(variant_name == "ARID1A") %>% 
   ggplot(aes(x = stage, y = si, color = stage)) + 
   geom_point(size = 2.5) + 
@@ -369,7 +454,7 @@ ARID1A_plot <- selection_data %>%
   theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) + 
   theme(axis.title.y = element_blank(),axis.text.y = element_blank())
 
-CHD4_plot <- selection_data %>% 
+CHD4_plot <- plotting_df %>% 
   filter(variant_name == "CHD4") %>% 
   ggplot(aes(x = stage, y = si, color = stage)) + 
   geom_point(size = 2.5) + 
@@ -387,7 +472,7 @@ CHD4_plot <- selection_data %>%
 
 
 
-CTCF_plot <- selection_data %>% 
+CTCF_plot <- plotting_df %>% 
   filter(variant_name == "CTCF") %>% 
   ggplot(aes(x = stage, y = si, color = stage)) + 
   geom_point(size = 2.5) + 
@@ -405,7 +490,7 @@ CTCF_plot <- selection_data %>%
 
 
 
-FGFR2_plot <- selection_data %>% 
+FGFR2_plot <- plotting_df %>% 
   filter(variant_name == "FGFR2") %>% 
   ggplot(aes(x = stage, y = si, color = stage)) + 
   geom_point(size = 2.5) + 
@@ -422,7 +507,7 @@ FGFR2_plot <- selection_data %>%
   theme(axis.title.y = element_blank(),axis.text.y = element_blank())
 
 
-PIK3CA_plot <- selection_data %>% 
+PIK3CA_plot <- plotting_df %>% 
   filter(variant_name == "PIK3CA") %>% 
   ggplot(aes(x = stage, y = si, color = stage)) + 
   geom_point(size = 2.5) + 
@@ -437,7 +522,7 @@ PIK3CA_plot <- selection_data %>%
   scale_y_continuous(labels = scientific,limits = limits1,expand = c(0.01, 0)) +
   theme(axis.title.y = element_blank(),text = element_text(size = text_size),axis.ticks.x = element_blank()) 
 
-PIK3R1_plot <- selection_data %>% 
+PIK3R1_plot <- plotting_df %>% 
   filter(variant_name == "PIK3R1") %>% 
   ggplot(aes(x = stage, y = si, color = stage)) + 
   geom_point(size = 2.5) + 
@@ -456,7 +541,7 @@ PIK3R1_plot <- selection_data %>%
 
 limits2 <- c(0,5e3)
 
-KRAS_plot <- selection_data %>% 
+KRAS_plot <- plotting_df %>% 
   filter(variant_name == "KRAS") %>% 
   ggplot(aes(x = stage, y = si, color = stage)) + 
   geom_point(size = 2.5) + 
@@ -471,7 +556,7 @@ KRAS_plot <- selection_data %>%
   scale_y_continuous(labels = scientific,limits = limits2,expand = c(0.01, 0)) +
   theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) 
 
-CTNNB1_plot <- selection_data %>% 
+CTNNB1_plot <- plotting_df %>% 
   filter(variant_name == "CTNNB1") %>% 
   ggplot(aes(x = stage, y = si, color = stage)) + 
   geom_point(size = 2.5) + 
@@ -487,7 +572,7 @@ CTNNB1_plot <- selection_data %>%
   theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) + 
   theme(axis.title.y = element_blank(),axis.text.y = element_blank())
 
-PTEN_plot <- selection_data %>% 
+PTEN_plot <- plotting_df %>% 
   filter(variant_name == "PTEN") %>% 
   ggplot(aes(x = stage, y = si, color = stage)) + 
   geom_point(size = 2.5) + 
