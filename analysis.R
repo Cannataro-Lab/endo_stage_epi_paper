@@ -3,6 +3,7 @@
 # Driver genes in endometrial hyperplasia and carcinoma exhibit stage-specific mutation rates, changing selection intensities, and antagonistic epistasis
 
 # Code collaboratively built by Mary Summers, Sem Asmelash, J. Nick Fisk, Jeffrey D. Mandell, and Vincent L. Cannataro 
+# Code updated to cancereffectsizeR v2.10.2 by Kira A. Glasmacher
 
 
 
@@ -718,7 +719,7 @@ mut_rate_epistasis <- mut_rate_epistasis %>%
 
 # saving mutation rates
 set_rates_epistasis <- mut_rate_epistasis %>%
-  select(gene, mut_rate) %>%
+  select(gene, rate = mut_rate) %>%
   data.table::setDT()
 
 # clearing gene rates 
