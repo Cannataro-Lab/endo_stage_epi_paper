@@ -963,18 +963,18 @@ pik3r1_label_2 <- "PIK3R1 in a background of PIK3CA"
 
 # creating arrow plot for epistatic relationship between PIK3CA and PIK3R1
 ci_plot_pik3 <- ggplot(compare_pik3) +
-  geom_segment(data = compare_pik3, aes(x = as.numeric(other_gene)-0.1, xend = as.numeric(other_gene)-0.1, y = ces_GOI,
+  geom_segment(data = compare_pik3, aes(x = as.numeric(other_gene)-0.15, xend = as.numeric(other_gene)-0.05, y = ces_GOI,
                                         yend = ces_GOI_after_OTHER), color="#008B8B", 
                arrow = arrow(length = unit(0.1, "inches"), type ="closed"), arrow.fill = "#008B8B", size = 1) +
-  geom_segment(data = compare_pik3, aes(x = as.numeric(other_gene)+0.1, xend = as.numeric(other_gene)+0.1,
+  geom_segment(data = compare_pik3, aes(x = as.numeric(other_gene)+0.05, xend = as.numeric(other_gene)+0.15,
                                         y = ces_OTHER, yend = ces_OTHER_after_GOI), color="#C7AA82", 
                arrow = arrow(length = unit(0.1, "inches"), type ="closed"), arrow.fill = "#C7AA82", size = 1) +
-  geom_point(data = compare_pik3, aes(x = as.numeric(other_gene)-0.1, y = ces_GOI), color = "#008B8B", size = 4) +
-  geom_point(data = compare_pik3, aes(x = as.numeric(other_gene)+0.1, y = ces_OTHER), color="#C7AA82", size = 4) +
-  geom_errorbar(aes(x = as.numeric(other_gene)-0.15, ymin = ci_low_95_ces_GOI, ymax = ci_high_95_ces_GOI), width = 0.05, color = "#008B8B") +
-  geom_errorbar(aes(x = as.numeric(other_gene)-0.05, ymin = ci_low_95_ces_GOI_after_OTHER, ymax = ci_high_95_ces_GOI_after_OTHER), width = 0.05, color = "#008B8B") +
-  geom_errorbar(aes(x=as.numeric(other_gene)+0.15, ymin = ci_low_95_ces_OTHER_after_GOI, ymax = ci_high_95_ces_OTHER_after_GOI), width = 0.05, color = "#C7AA82") +
-  geom_errorbar(aes(x=as.numeric(other_gene)+0.05, ymin = ci_low_95_ces_OTHER, ymax = ci_high_95_ces_OTHER), width = 0.05, color = "#C7AA82") +
+  geom_point(data = compare_pik3, aes(x = as.numeric(other_gene)-0.15, y = ces_GOI), color = "#008B8B", size = 4) +
+  geom_point(data = compare_pik3, aes(x = as.numeric(other_gene)+0.05, y = ces_OTHER), color="#C7AA82", size = 4) +
+  geom_errorbar(aes(x = as.numeric(other_gene)-0.15, ymin = ci_low_95_ces_GOI, ymax = ci_high_95_ces_GOI), width = 0.02, color = "#008B8B", alpha = 0.6) +
+  geom_errorbar(aes(x = as.numeric(other_gene)-0.05, ymin = ci_low_95_ces_GOI_after_OTHER, ymax = ci_high_95_ces_GOI_after_OTHER), width = 0.02, color = "#008B8B", alpha = 0.6) +
+  geom_errorbar(aes(x=as.numeric(other_gene)+0.15, ymin = ci_low_95_ces_OTHER_after_GOI, ymax = ci_high_95_ces_OTHER_after_GOI), width = 0.02, color = "#C7AA82", alpha = 0.6) +
+  geom_errorbar(aes(x=as.numeric(other_gene)+0.05, ymin = ci_low_95_ces_OTHER, ymax = ci_high_95_ces_OTHER), width = 0.02, color = "#C7AA82", alpha = 0.6) +
   coord_cartesian(xlim = c(0.75, 1.25), ylim = c(0, 4500)) +
   labs(x = NULL, y = "Cancer effect size") +
   theme_classic() +
@@ -1083,14 +1083,14 @@ fgfr2_label <- "FGFR2"
 fgfr2_label_2 <- "FGFR2 in a background of KRAS"
 
 ci_plot_kras_fgfr2 <- ggplot(compare_kras) +
-  geom_segment(data = compare_kras, aes(x=as.numeric(other_gene)-0.1,xend=as.numeric(other_gene)-0.1,y=ces_GOI,yend=ces_GOI_after_OTHER), color="#008B8B", arrow = arrow(length = unit(0.1, "inches"), type ="closed"), arrow.fill="#008B8B", size = 1) +
-  geom_segment(data = compare_kras, aes(x=as.numeric(other_gene)+0.1,xend=as.numeric(other_gene)+0.1,y=ces_OTHER,yend=ces_OTHER_after_GOI), color="#C7AA82", arrow = arrow(length = unit(0.1, "inches"), type ="closed"), arrow.fill="#C7AA82", size = 1) +
-  geom_point(data = compare_kras, aes(x=as.numeric(other_gene)-0.1,y=ces_GOI), color="#008B8B", size=4) +
-  geom_point(data = compare_kras, aes(x=as.numeric(other_gene)+0.1,y=ces_OTHER), color="#C7AA82", size=4) +
-  geom_errorbar(aes(x=as.numeric(other_gene)-0.15, ymin = ci_low_95_ces_GOI, ymax = ci_high_95_ces_GOI), width =0.05, color="#008B8B") +
-  geom_errorbar(aes(x=as.numeric(other_gene)-0.05, ymin = ci_low_95_ces_GOI_after_OTHER, ymax = ci_high_95_ces_GOI_after_OTHER), width =0.05, color="#008B8B") +
-  geom_errorbar(aes(x=as.numeric(other_gene)+0.15, ymin = ci_low_95_ces_OTHER_after_GOI, ymax = ci_high_95_ces_OTHER_after_GOI), width =0.05, color="#C7AA82") +
-  geom_errorbar(aes(x=as.numeric(other_gene)+0.05, ymin = ci_low_95_ces_OTHER, ymax = ci_high_95_ces_OTHER), width =0.05, color="#C7AA82") +
+  geom_segment(data = compare_kras, aes(x=as.numeric(other_gene)-0.15,xend=as.numeric(other_gene)-0.05,y=ces_GOI,yend=ces_GOI_after_OTHER), color="#008B8B", arrow = arrow(length = unit(0.1, "inches"), type ="closed"), arrow.fill="#008B8B", size = 1) +
+  geom_segment(data = compare_kras, aes(x=as.numeric(other_gene)+0.05,xend=as.numeric(other_gene)+0.15,y=ces_OTHER,yend=ces_OTHER_after_GOI), color="#C7AA82", arrow = arrow(length = unit(0.1, "inches"), type ="closed"), arrow.fill="#C7AA82", size = 1) +
+  geom_point(data = compare_kras, aes(x=as.numeric(other_gene)-0.15,y=ces_GOI), color="#008B8B", size=4) +
+  geom_point(data = compare_kras, aes(x=as.numeric(other_gene)+0.05,y=ces_OTHER), color="#C7AA82", size=4) +
+  geom_errorbar(aes(x=as.numeric(other_gene)-0.15, ymin = ci_low_95_ces_GOI, ymax = ci_high_95_ces_GOI), width =0.02, color="#008B8B", alpha = 0.6) +
+  geom_errorbar(aes(x=as.numeric(other_gene)-0.05, ymin = ci_low_95_ces_GOI_after_OTHER, ymax = ci_high_95_ces_GOI_after_OTHER), width =0.02, color="#008B8B", alpha = 0.6) +
+  geom_errorbar(aes(x=as.numeric(other_gene)+0.15, ymin = ci_low_95_ces_OTHER_after_GOI, ymax = ci_high_95_ces_OTHER_after_GOI), width =0.02, color="#C7AA82", alpha = 0.6) +
+  geom_errorbar(aes(x=as.numeric(other_gene)+0.05, ymin = ci_low_95_ces_OTHER, ymax = ci_high_95_ces_OTHER), width =0.02, color="#C7AA82", alpha = 0.6) +
   coord_cartesian(ylim = c(0, 4500), xlim = c(0.75, 1.25)) +
   labs(x = NULL, y = "Cancer effect size") +
   scale_x_continuous(breaks = c(0.9,1.1),labels = c("KRAS","FGFR2")) +
@@ -1137,5 +1137,4 @@ both_epi_plot <-
 
 
 ggsave(filename = "figures/figure_3_epistasis.png", width =12, height = 7)
-
 
