@@ -293,6 +293,7 @@ compound <- define_compound_variants(cesa = cesa_samples_by_groups,
 # feed compound variants into loop which calculates stage specific selection for each gene using "p" values from above
 
 source("R/new_sequential_lik.R")
+source("R/modified_ces_variant.R")
 
 index_by_state = list()
 name_by_state = list()
