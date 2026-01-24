@@ -34,7 +34,8 @@ VCF2 <- read_csv("input_data/VCF2_r.csv")
 clinical <- fread("input_data/clinical.tsv")
 clinical <- select(clinical, 
                    case_id, 
-                   figo_stage)
+                   figo_stage) %>%
+distinct()
 
 # loading TCGA UCEC data
 if(!file.exists("input_data/TCGA_ucec_data.maf")){
@@ -203,7 +204,6 @@ cesa_samples_by_groups <- gene_mutation_rates(cesa = cesa_samples_by_groups, cov
 selected_genes <- c("KRAS", "PTEN", "ARID1A", "CTCF", "CTNNB1", "PIK3CA", "CHD4", "FGFR2", "PIK3R1")
 
 
-library(ces.refset.hg19)
 RefCDS = ces.refset.hg19$RefCDS
 dndscv_gene_names <- cesa_samples_by_groups$gene_rates$gene
 nsyn_sites = sapply(RefCDS[dndscv_gene_names], function(x) colSums(x[["L"]])[1])
