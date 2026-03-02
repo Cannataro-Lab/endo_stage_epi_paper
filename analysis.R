@@ -317,6 +317,51 @@ sample_index_table = samples[, .(Unique_Patient_Identifier = Unique_Patient_Iden
                                  group_index = unlist(index_by_state[samples[[ordering_col]]]), 
                                  group_name = unlist(name_by_state[samples[[ordering_col]]]))]
 
+# Calculate non-step-specific selection intensity for LRT----
+source("R/new_sequential_lik_const_gamma.R")
+
+for(comp_ind in 1:length(compound)){
+  this_comp <- compound[comp_ind, ]
+  this_gene <- unlist(unique(this_comp$snv_info$genes))[1]
+  these_props <- mut_rates_for_p[mut_rates_for_p$gene %in% this_gene, c("p_1","p_2")]
+  these_props <- c(these_props$p_1, these_props$p_2)
+  
+  if(length(this_gene) != 1){
+    this_gene <- unlist(str_split(this_gene[1], "\\."))
+    this_gene <- this_gene[1]
+  }
+  
+  cat("Running gene:", this_gene, "\n")
+  
+  if (length(these_props) != 2 || any(is.na(these_props))) {
+    stop(paste("Missing or invalid mutation rates for", this_gene))
+  }
+  
+  cesa_samples_by_groups <- modified_ces_variant(cesa = cesa_samples_by_groups,
+                                                 samples=cesa_samples_by_groups$samples[Stage != "RestOfStages"], 
+                                                 variants = this_comp, 
+                                                 model = sequential_lik_dev_const_gamma, 
+                                                 lik_args = list(sample_index = sample_index_table, 
+                                                                 sequential_mut_prop = these_props), 
+                                                 optimizer_args = list(method = 'L-BFGS-B', 
+                                                                       lower = 1e-3, 
+                                                                       upper = 1e9),
+                                                 return_fit = TRUE,
+                                                 run_name = paste0(this_gene, "_const_gamma"),
+                                                 conf = 0.95)
+}
+
+selection_results_constant <- rbind(cesa_samples_by_groups@selection_results$KRAS_const_gamma,
+                                    cesa_samples_by_groups@selection_results$PTEN_const_gamma,
+                                    cesa_samples_by_groups@selection_results$ARID1A_const_gamma,
+                                    cesa_samples_by_groups@selection_results$CTCF_const_gamma,
+                                    cesa_samples_by_groups@selection_results$CTNNB1_const_gamma,
+                                    cesa_samples_by_groups@selection_results$PIK3CA_const_gamma,
+                                    cesa_samples_by_groups@selection_results$CHD4_const_gamma,
+                                    cesa_samples_by_groups@selection_results$FGFR2_const_gamma,
+                                    cesa_samples_by_groups@selection_results$PIK3R1_const_gamma)
+
+# Step-specific gamma estimation ----
 for(comp_ind in 1:length(compound)){
   
   this_comp <- compound[comp_ind, ]
@@ -351,6 +396,15 @@ for(comp_ind in 1:length(compound)){
                                                  conf = 0.95)
   }
 
+selection_results_step <- rbind(cesa_samples_by_groups@selection_results$KRAS,
+                                cesa_samples_by_groups@selection_results$PTEN,
+                                cesa_samples_by_groups@selection_results$ARID1A,
+                                cesa_samples_by_groups@selection_results$CTCF,
+                                cesa_samples_by_groups@selection_results$CTNNB1,
+                                cesa_samples_by_groups@selection_results$PIK3CA,
+                                cesa_samples_by_groups@selection_results$CHD4,
+                                cesa_samples_by_groups@selection_results$FGFR2,
+                                cesa_samples_by_groups@selection_results$PIK3R1)
 
 # creating selection plots with stage specific model ----
 
@@ -399,6 +453,23 @@ ci_df <- ci_df %>%
 
 ci_df$gene <- factor(ci_df$gene, levels = unique(ci_df$gene))
 
+# Calculate likelihood ratio ----
+loglik_step <- selection_results_step$loglikelihood
+loglik_simple <- selection_results_constant$loglikelihood
+
+loglik_df <- data.frame(
+  gene = selected_genes,
+  loglik_step = loglik_step,
+  loglik_simple = loglik_simple)
+
+loglik_df <- loglik_df %>%
+  mutate(
+    loglik_step = ifelse(loglik_step > 1e5, NA, loglik_step), # just making sure that the loglikelihoods are realistic
+    loglik_simple = ifelse(loglik_simple > 1e5, NA, loglik_simple), # not some large positive number (happens when convergence failed)
+    LRT_stat = -2 * (loglik_simple - loglik_step),
+    p_value = pchisq(LRT_stat, df = 1, lower.tail = FALSE), 
+    p_less_0.05 = ifelse(p_value < 0.05, TRUE, FALSE))
+                    
 # reformatting data set
 plotting_df <- ci_df |> 
   select(variant_name = gene, starts_with("si"), starts_with("ci")) |>
@@ -454,7 +525,7 @@ ARID1A_plot <- plotting_df %>%
         legend.text=element_text(size=text_size)) +
   scale_y_continuous(labels = scientific,limits = limits1,expand = c(0.01, 0)) +
   theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) + 
-  theme(axis.title.y = element_blank(),axis.text.y = element_blank())
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(), title = element_text(face = "italic"))
 
 CHD4_plot <- plotting_df %>% 
   filter(variant_name == "CHD4") %>% 
@@ -470,7 +541,7 @@ CHD4_plot <- plotting_df %>%
         legend.text=element_text(size=text_size)) +
   scale_y_continuous(labels = scientific,limits = limits1,expand = c(0.01, 0)) +
   theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) + 
-  theme(axis.title.y = element_blank(),axis.text.y = element_blank())
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(), title = element_text(face = "italic"))
 
 
 
@@ -488,7 +559,7 @@ CTCF_plot <- plotting_df %>%
         legend.text=element_text(size=text_size)) +
   scale_y_continuous(labels = scientific,limits = limits1,expand = c(0.01, 0)) +
   theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) + 
-  theme(axis.title.y = element_blank(),axis.text.y = element_blank())
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(), title = element_text(face = "italic"))
 
 
 
@@ -506,7 +577,7 @@ FGFR2_plot <- plotting_df %>%
         legend.text=element_text(size=text_size)) +
   scale_y_continuous(labels = scientific,limits = limits1,expand = c(0.01, 0)) +
   theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) + 
-  theme(axis.title.y = element_blank(),axis.text.y = element_blank())
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(), title = element_text(face = "italic"))
 
 
 PIK3CA_plot <- plotting_df %>% 
@@ -522,7 +593,7 @@ PIK3CA_plot <- plotting_df %>%
   theme(legend.position = "none", axis.text.x = element_blank(),
         legend.text=element_text(size=text_size)) +
   scale_y_continuous(labels = scientific,limits = limits1,expand = c(0.01, 0)) +
-  theme(axis.title.y = element_blank(),text = element_text(size = text_size),axis.ticks.x = element_blank()) 
+  theme(axis.title.y = element_blank(),text = element_text(size = text_size),axis.ticks.x = element_blank(), title = element_text(face = "italic")) 
 
 PIK3R1_plot <- plotting_df %>% 
   filter(variant_name == "PIK3R1") %>% 
@@ -538,7 +609,7 @@ PIK3R1_plot <- plotting_df %>%
         legend.text=element_text(size=text_size)) +
   scale_y_continuous(labels = scientific,limits = limits1,expand = c(0.01, 0)) +
   theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) + 
-  theme(axis.title.y = element_blank(),axis.text.y = element_blank())
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(), title = element_text(face = "italic"))
 
 
 limits2 <- c(0,5e3)
@@ -556,7 +627,7 @@ KRAS_plot <- plotting_df %>%
   theme(legend.position = "none", axis.text.x = element_blank(),
         legend.text=element_text(size=text_size)) +
   scale_y_continuous(labels = scientific,limits = limits2,expand = c(0.01, 0)) +
-  theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) 
+  theme(text = element_text(size = text_size),axis.ticks.x = element_blank(), title = element_text(face = "italic")) 
 
 CTNNB1_plot <- plotting_df %>% 
   filter(variant_name == "CTNNB1") %>% 
@@ -572,7 +643,7 @@ CTNNB1_plot <- plotting_df %>%
         legend.text=element_text(size=text_size)) +
   scale_y_continuous(labels = scientific,limits = limits2,expand = c(0.01, 0)) +
   theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) + 
-  theme(axis.title.y = element_blank(),axis.text.y = element_blank())
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(), title = element_text(face = "italic"))
 
 PTEN_plot <- plotting_df %>% 
   filter(variant_name == "PTEN") %>% 
@@ -589,7 +660,7 @@ PTEN_plot <- plotting_df %>%
         legend.text=element_text(size=text_size)) +
   scale_y_continuous(labels = scientific,limits = limits2,expand = c(0.01, 0)) +
   theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) + 
-  theme(axis.title.y = element_blank(),axis.text.y = element_blank())
+  theme(axis.title.y = element_blank(),axis.text.y = element_blank(), title = element_text(face = "italic"))
 
 
 
