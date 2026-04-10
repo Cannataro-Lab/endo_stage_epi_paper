@@ -412,7 +412,7 @@ scientific <- function(x){ifelse(x==0, "0", parse(text=gsub("[+]", "", gsub("e",
 
 # selecting necessary data
 
-selection_data <- rbindlist(cesa_samples_by_groups$selection)
+selection_data <- selection_results_step
 
 
 # computing Likelihood Root 95% CIs
@@ -470,6 +470,13 @@ loglik_df <- loglik_df %>%
     p_value = pchisq(LRT_stat, df = 1, lower.tail = FALSE), 
     p_less_0.05 = ifelse(p_value < 0.05, TRUE, FALSE))
                     
+# arrange genes in plotting df by relative difference in selection intensity between stage 1 and AH, calculated as (si_stage1 - si_AH) / si_AH
+ci_df <- ci_df %>% 
+  mutate(relative_diff = (si_Stage1 - si_AH) / si_AH) %>% 
+  arrange(desc(relative_diff)) %>% 
+  # make genes factors with levels determined by relative difference
+  mutate(gene = factor(gene, levels = gene))
+
 # reformatting data set
 plotting_df <- ci_df |> 
   select(variant_name = gene, starts_with("si"), starts_with("ci")) |>
@@ -489,226 +496,40 @@ plotting_df <- plotting_df|>
 # defining stages to be plotted
 plotting_df$stage <- factor(plotting_df$stage, levels = c("AH","Stage1"))
 
-# plotting results
+# add LRT result to plotting data frame and arrange by relative diff in selection for plotting
+plotting_df <- plotting_df %>% 
+  left_join(loglik_df %>% select(gene, p_less_0.05), by = c("variant_name" = "gene")) %>%
+  mutate(variant_name = factor(variant_name, levels = ci_df$gene))
+
+# plotting results with LRT significance indicated by shape of points
+plotting_df <- plotting_df %>%
+  mutate(facet_label = case_when(p_less_0.05 == TRUE ~ paste0(variant_name, "*", sep = ""),
+                                 p_less_0.05 == FALSE ~ variant_name)) %>%
+  mutate(facet_label = factor(facet_label, levels = c("PIK3R1*", "ARID1A", "CTCF", "CHD4", "FGFR2", "PIK3CA", "KRAS", "CTNNB1", "PTEN")))
+
+font_size <- 18
+
 plotting_df |>
-  ggplot(aes(x = stage, y = si, color = stage)) + 
-  geom_point(size = 2.5) + 
-  geom_errorbar(aes(ymin = ci_low_95, ymax = ci_high_95), width = .5) + 
-  facet_wrap(~variant_name, scales = "free_y", ncol = 3) + 
-  scale_color_manual(values = c("dark green", "purple"), labels = c("Normal through AH", "AH through Stage 1")) + 
-  theme_bw() + xlab("") + ylab("Cancer effect size") +
-  theme(legend.position = "bottom", axis.text.x = element_blank(), legend.text=element_text(size=10)) +
+  ggplot(aes(x = stage, y = si, color = stage)) +
+  geom_point(size = 2.5) +
+  geom_errorbar(aes(ymin = ci_low_95, ymax = ci_high_95), width = .3) +
+  facet_wrap(~facet_label, scales = "free_y", ncol = 3) +
+  scale_color_manual(values = c("dark green", "purple"),
+                     labels = c("Normal through AH", "AH through Stage 1")) +
+  theme_bw() +
+  labs(x = "Progression", y = "Cancer effect size", color = "Progression step") +
+  theme(legend.position = "bottom",
+        legend.text = element_text(size = font_size),
+        text = element_text(size = font_size),
+        strip.text = element_text(face = "italic", size = font_size),
+        axis.title = element_text(size = font_size),
+        axis.text = element_text(size = font_size)) +
   scale_y_continuous(labels = scientific) +
-  theme(text = element_text(size = 20)) +
-  expand_limits (y = 0)
-
-# ggsave(filename = "figures/figure2.png", width = 7, height = 10)
+  scale_x_discrete(labels = c("Step 1", "Step 2")) +
+  expand_limits(y = 0)
 
 
-# selection_data
-
-# ,plot.margin = margin(0, 0, 0, 0, "cm")
-
-limits1 <- c(0,1.5e3)
-text_size <- 13
-
-ARID1A_plot <- plotting_df %>% 
-  filter(variant_name == "ARID1A") %>% 
-  ggplot(aes(x = stage, y = si, color = stage)) + 
-  geom_point(size = 2.5) + 
-  geom_errorbar(aes(ymin = ci_low_95, ymax = ci_high_95), width = .5) + 
-  # facet_wrap(~variant_name, scales = "free_y", ncol = 3) + 
-  scale_color_manual(values = c("dark green", "purple"), 
-                     labels = c("Normal through atypical hyperplasia", "Atypical hyperplasia Stage-1 endometrial carcinoma")) + 
-  theme_bw() + xlab("") + ylab("Cancer effect size") + labs(title = "ARID1A") + 
-  theme(legend.position = "none", axis.text.x = element_blank(),
-        legend.text=element_text(size=text_size)) +
-  scale_y_continuous(labels = scientific,limits = limits1,expand = c(0.01, 0)) +
-  theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) + 
-  theme(axis.title.y = element_blank(),axis.text.y = element_blank(), title = element_text(face = "italic"))
-
-CHD4_plot <- plotting_df %>% 
-  filter(variant_name == "CHD4") %>% 
-  ggplot(aes(x = stage, y = si, color = stage)) + 
-  geom_point(size = 2.5) + 
-  geom_errorbar(aes(ymin = ci_low_95, ymax = ci_high_95), width = .5) + 
-  # facet_wrap(~variant_name, scales = "free_y", ncol = 3) + 
-  scale_color_manual(values = c("dark green", "purple"), 
-                     labels = c("Normal through atypical hyperplasia", "Atypical hyperplasia Stage-1 endometrial carcinoma")) +  
-  theme_bw() + xlab("") + ylab("Cancer effect size") + 
-  labs(title = "CHD4") + 
-  theme(legend.position = "none", axis.text.x = element_blank(),
-        legend.text=element_text(size=text_size)) +
-  scale_y_continuous(labels = scientific,limits = limits1,expand = c(0.01, 0)) +
-  theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) + 
-  theme(axis.title.y = element_blank(),axis.text.y = element_blank(), title = element_text(face = "italic"))
-
-
-
-CTCF_plot <- plotting_df %>% 
-  filter(variant_name == "CTCF") %>% 
-  ggplot(aes(x = stage, y = si, color = stage)) + 
-  geom_point(size = 2.5) + 
-  geom_errorbar(aes(ymin = ci_low_95, ymax = ci_high_95), width = .5) + 
-  # facet_wrap(~variant_name, scales = "free_y", ncol = 3) + 
-  scale_color_manual(values = c("dark green", "purple"), 
-                     labels = c("Normal through atypical hyperplasia", "Atypical hyperplasia Stage-1 endometrial carcinoma")) +  
-  theme_bw() + xlab("") + ylab("Cancer effect size") + 
-  labs(title = "CTCF") + 
-  theme(legend.position = "none", axis.text.x = element_blank(),
-        legend.text=element_text(size=text_size)) +
-  scale_y_continuous(labels = scientific,limits = limits1,expand = c(0.01, 0)) +
-  theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) + 
-  theme(axis.title.y = element_blank(),axis.text.y = element_blank(), title = element_text(face = "italic"))
-
-
-
-FGFR2_plot <- plotting_df %>% 
-  filter(variant_name == "FGFR2") %>% 
-  ggplot(aes(x = stage, y = si, color = stage)) + 
-  geom_point(size = 2.5) + 
-  geom_errorbar(aes(ymin = ci_low_95, ymax = ci_high_95), width = .5) + 
-  # facet_wrap(~variant_name, scales = "free_y", ncol = 3) + 
-  scale_color_manual(values = c("dark green", "purple"), 
-                     labels = c("Normal through atypical hyperplasia", "Atypical hyperplasia Stage-1 endometrial carcinoma")) +  
-  theme_bw() + xlab("") + ylab("Cancer effect size") + 
-  labs(title = "FGFR2") + 
-  theme(legend.position = "none", axis.text.x = element_blank(),
-        legend.text=element_text(size=text_size)) +
-  scale_y_continuous(labels = scientific,limits = limits1,expand = c(0.01, 0)) +
-  theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) + 
-  theme(axis.title.y = element_blank(),axis.text.y = element_blank(), title = element_text(face = "italic"))
-
-
-PIK3CA_plot <- plotting_df %>% 
-  filter(variant_name == "PIK3CA") %>% 
-  ggplot(aes(x = stage, y = si, color = stage)) + 
-  geom_point(size = 2.5) + 
-  geom_errorbar(aes(ymin = ci_low_95, ymax = ci_high_95), width = .5) + 
-  # facet_wrap(~variant_name, scales = "free_y", ncol = 3) + 
-  scale_color_manual(values = c("dark green", "purple"), 
-                     labels = c("Normal through atypical hyperplasia", "Atypical hyperplasia Stage-1 endometrial carcinoma")) +  
-  theme_bw() + xlab("") + ylab("Cancer effect size") + 
-  labs(title = "PIK3CA") + 
-  theme(legend.position = "none", axis.text.x = element_blank(),
-        legend.text=element_text(size=text_size)) +
-  scale_y_continuous(labels = scientific,limits = limits1,expand = c(0.01, 0)) +
-  theme(axis.title.y = element_blank(),text = element_text(size = text_size),axis.ticks.x = element_blank(), title = element_text(face = "italic")) 
-
-PIK3R1_plot <- plotting_df %>% 
-  filter(variant_name == "PIK3R1") %>% 
-  ggplot(aes(x = stage, y = si, color = stage)) + 
-  geom_point(size = 2.5) + 
-  geom_errorbar(aes(ymin = ci_low_95, ymax = ci_high_95), width = .5) + 
-  # facet_wrap(~variant_name, scales = "free_y", ncol = 3) + 
-  scale_color_manual(values = c("dark green", "purple"), 
-                     labels = c("Normal through atypical hyperplasia", "Atypical hyperplasia Stage-1 endometrial carcinoma")) + 
-  theme_bw() + xlab("") + ylab("Cancer effect size") + 
-  labs(title = "PIK3R1") + 
-  theme(legend.position = "none", axis.text.x = element_blank(),
-        legend.text=element_text(size=text_size)) +
-  scale_y_continuous(labels = scientific,limits = limits1,expand = c(0.01, 0)) +
-  theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) + 
-  theme(axis.title.y = element_blank(),axis.text.y = element_blank(), title = element_text(face = "italic"))
-
-
-limits2 <- c(0,5e3)
-
-KRAS_plot <- plotting_df %>% 
-  filter(variant_name == "KRAS") %>% 
-  ggplot(aes(x = stage, y = si, color = stage)) + 
-  geom_point(size = 2.5) + 
-  geom_errorbar(aes(ymin = ci_low_95, ymax = ci_high_95), width = .5) + 
-  # facet_wrap(~variant_name, scales = "free_y", ncol = 3) + 
-  scale_color_manual(values = c("dark green", "purple"), 
-                     labels = c("Normal through atypical hyperplasia", "Atypical hyperplasia Stage-1 endometrial carcinoma")) + 
-  theme_bw() + xlab("") + ylab("Cancer effect size") + 
-  labs(title = "KRAS") + 
-  theme(legend.position = "none", axis.text.x = element_blank(),
-        legend.text=element_text(size=text_size)) +
-  scale_y_continuous(labels = scientific,limits = limits2,expand = c(0.01, 0)) +
-  theme(text = element_text(size = text_size),axis.ticks.x = element_blank(), title = element_text(face = "italic")) 
-
-CTNNB1_plot <- plotting_df %>% 
-  filter(variant_name == "CTNNB1") %>% 
-  ggplot(aes(x = stage, y = si, color = stage)) + 
-  geom_point(size = 2.5) + 
-  geom_errorbar(aes(ymin = ci_low_95, ymax = ci_high_95), width = .5) + 
-  # facet_wrap(~variant_name, scales = "free_y", ncol = 3) + 
-  scale_color_manual(values = c("dark green", "purple"), 
-                     labels = c("Normal through atypical hyperplasia", "Atypical hyperplasia Stage-1 endometrial carcinoma")) + 
-  theme_bw() + xlab("") + ylab("Cancer effect size") + 
-  labs(title = "CTNNB1") + 
-  theme(legend.position = "none", axis.text.x = element_blank(),
-        legend.text=element_text(size=text_size)) +
-  scale_y_continuous(labels = scientific,limits = limits2,expand = c(0.01, 0)) +
-  theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) + 
-  theme(axis.title.y = element_blank(),axis.text.y = element_blank(), title = element_text(face = "italic"))
-
-PTEN_plot <- plotting_df %>% 
-  filter(variant_name == "PTEN") %>% 
-  ggplot(aes(x = stage, y = si, color = stage)) + 
-  geom_point(size = 2.5) + 
-  geom_errorbar(aes(ymin = ci_low_95, ymax = ci_high_95), width = .5) + 
-  # facet_wrap(~variant_name, scales = "free_y", ncol = 3) + 
-  scale_color_manual(values = c("dark green", "purple"), 
-                     labels = c("Progression from normal to atypical hyperplasia", 
-                                "Progression from atypical hyperplasia to Stage-1 endometrial carcinoma")) +  
-  theme_bw() + xlab("") + ylab("Cancer effect size") + 
-  labs(title = "PTEN", color = NULL) + 
-  theme(legend.position = "right", axis.text.x = element_blank(),
-        legend.text=element_text(size=text_size)) +
-  scale_y_continuous(labels = scientific,limits = limits2,expand = c(0.01, 0)) +
-  theme(text = element_text(size = text_size),axis.ticks.x = element_blank()) + 
-  theme(axis.title.y = element_blank(),axis.text.y = element_blank(), title = element_text(face = "italic"))
-
-
-
-all_plots <- PIK3CA_plot + 
-  PIK3R1_plot + 
-  FGFR2_plot +  
-  ARID1A_plot + 
-  CHD4_plot  +  
-  CTCF_plot + 
-  KRAS_plot + 
-  CTNNB1_plot + 
-  PTEN_plot + 
-  guide_area()  + 
-  plot_layout(nrow = 2, ncol = 6,guides = "collect") 
-
-ylab <- KRAS_plot$labels$y
-labp <- ggplot(data.frame(l = ylab, x = 1, y = 1)) +
-  geom_text(aes(x, y, label = l), angle = 90,size=text_size * (5/14)) + 
-  theme_void() +
-  theme(plot.margin = margin(0, 0, 0, 0, "cm"))
-coord_cartesian(clip = "off") 
-
-KRAS_plot$labels$y <- " "
-
-
-
-
-all_plots <-   KRAS_plot + 
-  CTNNB1_plot + 
-  PTEN_plot + 
-  plot_spacer() + 
-  guide_area() + 
-  plot_spacer() + 
-  PIK3CA_plot + 
-  PIK3R1_plot + 
-  FGFR2_plot +  
-  ARID1A_plot + 
-  CTCF_plot + 
-  CHD4_plot  +
-  plot_layout(nrow = 2, ncol = 6,guides = "collect") 
-
-plot_all <- labp + all_plots + plot_layout(widths = c(1, 75))
-
-
-ggsave(filename = "figures/figure_2_stages_selection.png", width = 14, height = 5, plot = plot_all)
-
-# + 
-# plot_annotation(tag_levels = "A")
+ggsave(filename = "figures/figure_2_stages_selection.png", width = 10, height = 8)
 
 
 # prevalences in stages ----
@@ -747,22 +568,23 @@ library(ggrepel)
 font_size <- 12
 geom_font_size <- (5/14) * font_size
 
-ggplot(prevalence_df, aes(x=stages, y=prop_tumors_with)) + 
-  geom_point() + 
-  geom_segment(data = prevalence_df_w, aes(x=1,xend = 2,
-                                           y=`prop_tumors_with_Atypical hyperplasia`,
-                                           yend=`prop_tumors_with_Stage-1 EC`)) + 
-  geom_text_repel(data = prevalence_df_w,aes(x=1, y=`prop_tumors_with_Atypical hyperplasia`,label=gene_name),direction = "y",nudge_x = -0.01,hjust=1,size = geom_font_size) + 
-  scale_color_viridis_d() + 
-  theme_bw() + 
-  scale_y_continuous(limits = c(0,0.45),expand = c(0, 0)) + 
-  scale_x_discrete(labels = c("Atypical\nhyperplasia","Stage-1\nendometrial carcinoma")) + 
-  theme(text= element_text(size = font_size)) + 
-  labs(y="Proportions of tissue samples with\ndriver mutations", x=NULL) -> 
+ggplot(prevalence_df, aes(x = stages, y = prop_tumors_with)) +
+  geom_point() +
+  geom_segment(data = prevalence_df_w, aes(x = 1, xend = 2,
+                                           y = `prop_tumors_with_Atypical hyperplasia`,
+                                           yend = `prop_tumors_with_Stage-1 EC`)) +
+  geom_text_repel(data = prevalence_df_w, aes(x = 1, y = `prop_tumors_with_Atypical hyperplasia`, label = gene_name),
+                  direction = "y", nudge_x = -0.01, hjust = 1, size = geom_font_size, fontface = "italic") +
+  scale_color_viridis_d() +
+  theme_bw() +
+  scale_y_continuous(limits = c(0, 0.45), expand = c(0, 0)) +
+  scale_x_discrete(labels = c("Atypical\nhyperplasia", "Stage-1\nendometrial carcinoma")) +
+  theme(text = element_text(size = font_size)) +
+  labs(y = "Proportions of tissue samples with\ndriver mutations", x = NULL) ->
   prev_plot
 
 
-ggsave(filename = "figures/figure_1_prevalence.png",plot = prev_plot,height = 5,width = 4)
+ggsave(filename = "figures/figure_1_prevalence.png",plot = prev_plot, height = 5,width = 4)
 
 # epistasis ----
 
