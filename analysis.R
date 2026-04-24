@@ -636,7 +636,7 @@ pik3_variants <- rbind(pik3ca_variants, pik3r1_variants)
 comp_pik3 <- define_compound_variants(cesa = cesa_epistasis, variant_table = pik3_variants, by = "gene", merge_distance = Inf)
 
 
-shared_tcga_pik3 <- grep(x = intersect(comp_pik3$samples_with$PIK3CA.1, comp_pik3$samples_with$PIK3R1.1), pattern = "TCGA",value = T)
+shared_tcga_pik3 <- grep(x = intersect(comp_pik3$samples_with$PIK3CA, comp_pik3$samples_with$PIK3R1), pattern = "TCGA",value = T)
 
 # cesa_epistasis$maf %>% 
 #   filter(Unique_Patient_Identifier == shared_tcga_pik3[2]) %>%
@@ -661,7 +661,7 @@ epistasis_pik3 <- cesa_pik3$epistasis$PIK3R1_vs_PIK3CA
 cesa_df <- as.data.frame(cesa_epistasis$maf)
 
 # tumors with substitutions in PIK3CA and PIK3R1
-tumors_of_interest_pik3 <- comp_pik3$samples_with$PIK3CA.1[comp_pik3$samples_with$PIK3CA.1 %in% comp_pik3$samples_with$PIK3R1.1]
+tumors_of_interest_pik3 <- comp_pik3$samples_with$PIK3CA[comp_pik3$samples_with$PIK3CA %in% comp_pik3$samples_with$PIK3R1]
 
 
 # selecting only all PIK3CA and PIK3R1 variants with single nucleotide variants in tumors of interest
@@ -716,7 +716,7 @@ epistasis_kras_fgfr2 <- cesa_kras_fgfr2$epistasis$KRAS_vs_FGFR2
 # finding samples that have substitutions in both genes
 
 # tumors with substitutions in KRAS and FGFR2
-tumors_interest_kras_fgfr2 <- comp_kras_fgfr2$samples_with$KRAS.1[comp_kras_fgfr2$samples_with$KRAS.1 %in% comp_kras_fgfr2$samples_with$FGFR2.1]
+tumors_interest_kras_fgfr2 <- comp_kras_fgfr2$samples_with$KRAS[comp_kras_fgfr2$samples_with$KRAS %in% comp_kras_fgfr2$samples_with$FGFR2]
 
 
 # selecting only kras and fgfr genes and sinlge nucleotide variants
