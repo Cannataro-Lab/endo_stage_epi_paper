@@ -515,7 +515,7 @@ plotting_df |>
   geom_errorbar(aes(ymin = ci_low_95, ymax = ci_high_95), width = .3) +
   facet_wrap(~facet_label, scales = "free_y", ncol = 3) +
   scale_color_manual(values = c("dark green", "purple"),
-                     labels = c("Normal through AH", "AH through Stage 1")) +
+                     labels = c("Normal through AH", "AH through Stage I")) +
   theme_bw() +
   labs(x = "Progression", y = "Cancer effect size", color = "Progression step") +
   theme(legend.position = "bottom",
@@ -578,7 +578,7 @@ ggplot(prevalence_df, aes(x = stages, y = prop_tumors_with)) +
   scale_color_viridis_d() +
   theme_bw() +
   scale_y_continuous(limits = c(0, 0.45), expand = c(0, 0)) +
-  scale_x_discrete(labels = c("Atypical\nhyperplasia", "Stage-1\nendometrial carcinoma")) +
+  scale_x_discrete(labels = c("Atypical\nhyperplasia", "Stage I\nendometrial carcinoma")) +
   theme(text = element_text(size = font_size)) +
   labs(y = "Proportions of tissue samples with\ndriver mutations", x = NULL) ->
   prev_plot
