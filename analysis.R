@@ -591,7 +591,7 @@ ggplot(prevalence_df, aes(x = stages, y = prop_tumors_with)) +
   prev_plot
 
 
-ggsave(filename = "figures/figure_1_prevalence.png",plot = prev_plot, height = 5,width = 4)
+ggsave(filename = "figures/figure_1_prevalence.png",plot = prev_plot, height = 5,width = 5)
 
 # epistasis ----
 
