@@ -1,4 +1,3 @@
-
 # Full analysis completed within Summers et al. 
 # Driver genes in endometrial hyperplasia and carcinoma exhibit stage-specific mutation rates, changing selection intensities, and antagonistic epistasis
 
@@ -144,23 +143,27 @@ if(!file.exists("input_data/cptac.maf")){
 
 # loading maf data
 cptac.maf <- read_tsv("input_data/cptac.maf", comment = "#")
-manifest <- read_tsv("input_data/gdc_manifest.2023-02-28.txt")
-cptac_clinical <- read_tsv("input_data/clinical_cart/clinical.tsv")
+manifest <- read_tsv("input_data/gdc_manifest.2026-06-01.155053.txt") # using this set of samples will ensure consistency with our results even with newer data releases
+cptac_clinical <- read_tsv("input_data/clinical.project-cptac-3.2026-06-01/clinical.tsv")
 
+cptac_clinical <- cptac_clinical %>%
+  filter(`cases.primary_site` == "Uterus, NOS") %>%
+  select(`cases.case_id`, `diagnoses.ajcc_pathologic_stage`) %>%
+  distinct()
 
-# selecting data from CPTAC maf file with tumor sample barcodes matching the 102 samples from manifest
+# selecting data from CPTAC maf file with tumor sample barcodes matching the samples from manifest
 maf_endo_cptac <- cptac.maf |> filter(source_file_id %in% manifest$id)
 
 
 # joining clinical and sample data sets by case id
-maf_endo_cptac <- left_join(x = maf_endo_cptac, y = cptac_clinical, by = "case_id")
+maf_endo_cptac <- left_join(x = maf_endo_cptac, y = cptac_clinical, by = c("case_id" = "cases.case_id"))
 
 
 # pre load maf of clinical and sample data 
 maf_cptac <- preload_maf(maf = maf_endo_cptac, 
                          refset = "ces.refset.hg19", 
                          chain_file = "input_data/hg38ToHg19.over.chain", 
-                         keep_extra_columns = c("case_id", "ajcc_pathologic_stage"))
+                         keep_extra_columns = c("case_id", "diagnoses.ajcc_pathologic_stage"))
 
 
 # removing samples where column Problem is not equal to NA
@@ -174,9 +177,9 @@ maf_cptac <- maf_cptac[(repetitive_region == F | cosmic_site_tier %in% 1:3)]
 
 # adding stage column and specifying Stage 1 and Rest of Stages
 maf_cptac <- maf_cptac |> 
-  filter(!is.na(ajcc_pathologic_stage)) |> 
+  filter(!is.na(diagnoses.ajcc_pathologic_stage)) |> 
   mutate(Stage = case_when(
-    ajcc_pathologic_stage %in% c("Stage I") ~ "Stage1",
+    diagnoses.ajcc_pathologic_stage %in% c("Stage I", "Stage IA", "Stage IB") ~ "Stage1",
     TRUE ~ "RestOfStages"))
 
 
@@ -505,7 +508,8 @@ plotting_df <- plotting_df %>%
 plotting_df <- plotting_df %>%
   mutate(facet_label = case_when(p_less_0.05 == TRUE ~ paste0(variant_name, "*", sep = ""),
                                  p_less_0.05 == FALSE ~ variant_name)) %>%
-  mutate(facet_label = factor(facet_label, levels = c("PIK3R1*", "ARID1A", "CTCF", "CHD4", "FGFR2", "PIK3CA", "KRAS", "CTNNB1", "PTEN")))
+  mutate(facet_label = factor(facet_label, levels = c("PIK3R1*", "CTCF", "CHD4", "ARID1A",
+                                                      "PIK3CA", "FGFR2", "CTNNB1", "PTEN", "KRAS")))
 
 font_size <- 18
 
@@ -577,9 +581,12 @@ ggplot(prevalence_df, aes(x = stages, y = prop_tumors_with)) +
                   direction = "y", nudge_x = -0.01, hjust = 1, size = geom_font_size, fontface = "italic") +
   scale_color_viridis_d() +
   theme_bw() +
-  scale_y_continuous(limits = c(0, 0.45), expand = c(0, 0)) +
+  scale_y_continuous(limits = c(0, 0.5), expand = c(0, 0)) +
   scale_x_discrete(labels = c("Atypical\nhyperplasia", "Stage I\nendometrial carcinoma")) +
-  theme(text = element_text(size = font_size)) +
+  theme(text = element_text(size = font_size),
+        axis.text.x = element_text(size = font_size),
+        axis.text.y = element_text(size = font_size),
+        axis.title.y = element_text(size = font_size)) +
   labs(y = "Proportions of tissue samples with\ndriver mutations", x = NULL) ->
   prev_plot
 
@@ -756,7 +763,6 @@ kras_maf_selection <- left_join(kras_fgfr2_maf, kras_fgfr2_selection, by = c("to
 
 
 
-
 # epistasis plots 
 
 
@@ -859,10 +865,10 @@ pik3r1_label_2 <- "PIK3R1 in a background of PIK3CA"
 ci_plot_pik3 <- ggplot(compare_pik3) +
   geom_segment(data = compare_pik3, aes(x = as.numeric(other_gene)-0.15, xend = as.numeric(other_gene)-0.05, y = ces_GOI,
                                         yend = ces_GOI_after_OTHER), color="#008B8B", 
-               arrow = arrow(length = unit(0.1, "inches"), type ="closed"), arrow.fill = "#008B8B", size = 1) +
+               arrow = arrow(length = unit(0.1, "inches"), type ="closed"), arrow.fill = "#008B8B", linewidth = 1) +
   geom_segment(data = compare_pik3, aes(x = as.numeric(other_gene)+0.05, xend = as.numeric(other_gene)+0.15,
                                         y = ces_OTHER, yend = ces_OTHER_after_GOI), color="#C7AA82", 
-               arrow = arrow(length = unit(0.1, "inches"), type ="closed"), arrow.fill = "#C7AA82", size = 1) +
+               arrow = arrow(length = unit(0.1, "inches"), type ="closed"), arrow.fill = "#C7AA82", linewidth = 1) +
   geom_point(data = compare_pik3, aes(x = as.numeric(other_gene)-0.15, y = ces_GOI), color = "#008B8B", size = 4) +
   geom_point(data = compare_pik3, aes(x = as.numeric(other_gene)+0.05, y = ces_OTHER), color="#C7AA82", size = 4) +
   geom_errorbar(aes(x = as.numeric(other_gene)-0.15, ymin = ci_low_95_ces_GOI, ymax = ci_high_95_ces_GOI), width = 0.02, color = "#008B8B", alpha = 0.6) +
@@ -977,8 +983,8 @@ fgfr2_label <- "FGFR2"
 fgfr2_label_2 <- "FGFR2 in a background of KRAS"
 
 ci_plot_kras_fgfr2 <- ggplot(compare_kras) +
-  geom_segment(data = compare_kras, aes(x=as.numeric(other_gene)-0.15,xend=as.numeric(other_gene)-0.05,y=ces_GOI,yend=ces_GOI_after_OTHER), color="#008B8B", arrow = arrow(length = unit(0.1, "inches"), type ="closed"), arrow.fill="#008B8B", size = 1) +
-  geom_segment(data = compare_kras, aes(x=as.numeric(other_gene)+0.05,xend=as.numeric(other_gene)+0.15,y=ces_OTHER,yend=ces_OTHER_after_GOI), color="#C7AA82", arrow = arrow(length = unit(0.1, "inches"), type ="closed"), arrow.fill="#C7AA82", size = 1) +
+  geom_segment(data = compare_kras, aes(x=as.numeric(other_gene)-0.15,xend=as.numeric(other_gene)-0.05,y=ces_GOI,yend=ces_GOI_after_OTHER), color="#008B8B", arrow = arrow(length = unit(0.1, "inches"), type ="closed"), arrow.fill="#008B8B", linewidth = 1) +
+  geom_segment(data = compare_kras, aes(x=as.numeric(other_gene)+0.05,xend=as.numeric(other_gene)+0.15,y=ces_OTHER,yend=ces_OTHER_after_GOI), color="#C7AA82", arrow = arrow(length = unit(0.1, "inches"), type ="closed"), arrow.fill="#C7AA82", linewidth = 1) +
   geom_point(data = compare_kras, aes(x=as.numeric(other_gene)-0.15,y=ces_GOI), color="#008B8B", size=4) +
   geom_point(data = compare_kras, aes(x=as.numeric(other_gene)+0.05,y=ces_OTHER), color="#C7AA82", size=4) +
   geom_errorbar(aes(x=as.numeric(other_gene)-0.15, ymin = ci_low_95_ces_GOI, ymax = ci_high_95_ces_GOI), width =0.02, color="#008B8B", alpha = 0.6) +
@@ -1018,17 +1024,22 @@ ci_plot_pik3_annot <- ci_plot_pik3_annot + plot_layout(tag_level = 'new')
 ci_plot_kras_fgfr2_annot <- ci_plot_kras_fgfr2_annot + plot_layout(tag_level = 'new')
 
 
+library(patchwork)
 
 both_epi_plot <- 
   ci_plot_pik3 + 
   ci_plot_pik3_annot + 
   ci_plot_kras_fgfr2 + 
-  ci_plot_kras_fgfr2_annot  + 
-  plot_annotation(tag_levels = "A") + 
-  plot_layout(nrow = 2) & 
-  theme(plot.tag.position = c(0, 1),
-        plot.tag = element_text(hjust = 0, vjust = 1)) 
+  ci_plot_kras_fgfr2_annot +
+  plot_layout(nrow = 2) +
+  plot_annotation(
+    tag_levels = "A",
+    theme = theme(
+      plot.tag.position = c(0, 1),
+      plot.tag = element_text(hjust = 0, vjust = 1)
+    )
+  )
 
 
-ggsave(filename = "figures/figure_3_epistasis.png", width =12, height = 7)
+ggsave(both_epi_plot, filename = "figures/figure_3_epistasis.png", width =13, height = 7)
 
