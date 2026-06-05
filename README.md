@@ -37,7 +37,7 @@ remotes::install_github("Townsend-Lab-Yale/ces.refset.hg19@v1.1.3")
 | `TCGA_ucec_data.maf` | TCGA via GDC | Downloaded automatically by `get_TCGA_project_MAF()` if absent |
 | `cptac.maf` | CPTAC-3 via GDC | Downloaded automatically by `get_TCGA_project_MAF()` if absent |
 | `clinical.tsv` | GDC data portal (TCGA-UCEC) | Clinical data for TCGA samples |
-| `gdc_manifest.2023-02-28.txt` | GDC data portal (CPTAC-3) | Manifest selecting the 102 CPTAC endometrial samples |
+| `gdc_manifest.2026-06-01.155053.txt` | GDC data portal (CPTAC-3) | Manifest selecting the Data Release 45 CPTAC endometrial samples |
 | `hg38ToHg19.over.chain` | UCSC Genome Browser | Liftover chain file for hg38→hg19 coordinate conversion |
 
 ------------------------------------------------------------------------
