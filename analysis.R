@@ -34,7 +34,7 @@ clinical <- fread("input_data/clinical.tsv")
 clinical <- select(clinical, 
                    case_id, 
                    figo_stage) %>%
-distinct()
+  distinct()
 
 # loading TCGA UCEC data
 if(!file.exists("input_data/TCGA_ucec_data.maf")){
@@ -397,7 +397,7 @@ for(comp_ind in 1:length(compound)){
                                                  return_fit = TRUE,
                                                  run_name = this_gene,
                                                  conf = 0.95)
-  }
+}
 
 selection_results_step <- rbind(cesa_samples_by_groups@selection_results$KRAS,
                                 cesa_samples_by_groups@selection_results$PTEN,
@@ -472,7 +472,7 @@ loglik_df <- loglik_df %>%
     LRT_stat = -2 * (loglik_simple - loglik_step),
     p_value = pchisq(LRT_stat, df = 1, lower.tail = FALSE), 
     p_less_0.05 = ifelse(p_value < 0.05, TRUE, FALSE))
-                    
+
 # arrange genes in plotting df by relative difference in selection intensity between stage 1 and AH, calculated as (si_stage1 - si_AH) / si_AH
 ci_df <- ci_df %>% 
   mutate(relative_diff = (si_Stage1 - si_AH) / si_AH) %>% 
@@ -1026,12 +1026,79 @@ ci_plot_kras_fgfr2_annot <- ci_plot_kras_fgfr2_annot + plot_layout(tag_level = '
 
 library(patchwork)
 
-both_epi_plot <- 
-  ci_plot_pik3 + 
-  ci_plot_pik3_annot + 
-  ci_plot_kras_fgfr2 + 
-  ci_plot_kras_fgfr2_annot +
-  plot_layout(nrow = 2) +
+add_manual_epistasis_key <- function(
+    p,
+    labels,
+    teal = "#008B8B",
+    tan = "#C7AA82",
+    text_size = 20
+) {
+  geom_text_size <- text_size * (5 / 14) * 0.8
+  
+  p +
+    annotate(
+      "rect",
+      xmin = 0.988, xmax = 1.215,
+      ymin = 2200, ymax = 4250,
+      fill = "white",
+      color = "grey70",
+      linewidth = 0.3
+    ) +
+    annotate("point", x = 1.0, y = 4000, size = 3, color = teal, shape = 16) +
+    annotate("text",  x = 1.01, y = 4000, hjust = 0,
+             label = labels[1], size = geom_text_size) +
+    
+    annotate("point", x = 1.0, y = 3500, size = 3, color = teal, shape = 17) +
+    annotate("text",  x = 1.01, y = 3500, hjust = 0,
+             label = labels[2], size = geom_text_size) +
+    
+    annotate("point", x = 1.0, y = 3000, size = 3, color = tan, shape = 16) +
+    annotate("text",  x = 1.01, y = 3000, hjust = 0,
+             label = labels[3], size = geom_text_size) +
+    
+    annotate("point", x = 1.0, y = 2500, size = 3, color = tan, shape = 17) +
+    annotate("text",  x = 1.01, y = 2500, hjust = 0,
+             label = labels[4], size = geom_text_size) +
+    
+    coord_cartesian(
+      xlim = c(0.85, 1.18),
+      ylim = c(0, 4500),
+      clip = "off"
+    ) +
+    theme(
+      plot.margin = margin(5.5, 30, 5.5, 5.5),
+      axis.text.x = element_text(size = text_size),
+      axis.text.y = element_text(size = text_size),
+      axis.title.y = element_text(size = text_size)
+    )
+}
+
+ci_plot_pik3_final <- add_manual_epistasis_key(
+  ci_plot_pik3,
+  labels = c(
+    "PIK3CA",
+    "PIK3CA in a background of PIK3R1",
+    "PIK3R1",
+    "PIK3R1 in a background of PIK3CA"
+  ),
+  text_size = text_size
+)
+
+ci_plot_kras_fgfr2_final <- add_manual_epistasis_key(
+  ci_plot_kras_fgfr2,
+  labels = c(
+    "KRAS",
+    "KRAS in a background of FGFR2",
+    "FGFR2",
+    "FGFR2 in a background of KRAS"
+  ),
+  text_size = text_size
+)
+
+
+
+both_epi_plot <-
+  (ci_plot_pik3_final / ci_plot_kras_fgfr2_final) +
   plot_annotation(
     tag_levels = "A",
     theme = theme(
@@ -1040,6 +1107,4 @@ both_epi_plot <-
     )
   )
 
-
-ggsave(both_epi_plot, filename = "figures/figure_3_epistasis.png", width =13, height = 7)
-
+ggsave(both_epi_plot, filename = "figures/figure_3_epistasis.png", width = 9, height = 10)
